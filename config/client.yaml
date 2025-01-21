@@ -1,0 +1,64 @@
+# https://www.envoyproxy.io/docs/envoy/latest/configuration/overview/examples#special-yaml-usage
+!ignore dynamic:
+  - &address 0.0.0.0
+  - &validation_context_sds_secret_config
+    name: validation_context_sds
+    sds_config:
+      path_config_source:
+        path: /var/run/config/validation_context_sds_secret.yaml
+      resource_api_version: V3
+  - &health_checks
+    - timeout: 1s
+      interval: 5s
+      no_traffic_interval: 1s
+      unhealthy_threshold: 1
+      healthy_threshold: 1
+      event_logger:
+        - name: std_event_logger
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.health_check.event_sinks.file.v3.HealthCheckEventFileSink
+            event_log_path: /var/run/logs/health_check_events.log
+      always_log_health_check_success: true
+      always_log_health_check_failures: true
+      # empty tcp_health_check does TCP connect only
+      tcp_health_check: { }
+admin:
+  address:
+    socket_address:
+      address: *address
+      port_value: 8001
+overload_manager:
+  resource_monitors:
+    - name: "envoy.resource_monitors.global_downstream_max_connections"
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.resource_monitors.downstream_connections.v3.DownstreamConnectionsConfig
+        max_active_downstream_connections: 1000
+node:
+  id: envoy-node
+  cluster: ingress:public:https
+static_resources:
+  clusters:
+    - name: &8000-cluster 8000-cluster
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      dns_refresh_rate: 600s
+      common_lb_config:
+        healthy_panic_threshold:
+          value: 0.0
+      load_assignment:
+        cluster_name: *8000-cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: server # docker compose service name
+                      port_value: 8000
+      health_checks: *health_checks
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: localhost
+          common_tls_context:
+            validation_context_sds_secret_config: *validation_context_sds_secret_config

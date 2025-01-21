@@ -1,0 +1,62 @@
+# https://www.envoyproxy.io/docs/envoy/latest/configuration/overview/examples#special-yaml-usage
+!ignore dynamic:
+  - &address 0.0.0.0
+  - &tls_certificate_sds_secret_configs
+    name: tls_sds
+    sds_config:
+      path_config_source:
+        path: /var/run/config/tls_certificate_sds_secret.yaml
+      resource_api_version: V3
+  - &router
+    name: envoy.filters.http.router
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+admin:
+  address:
+    socket_address:
+      address: *address
+      port_value: 8001
+overload_manager:
+  resource_monitors:
+    - name: "envoy.resource_monitors.global_downstream_max_connections"
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.resource_monitors.downstream_connections.v3.DownstreamConnectionsConfig
+        max_active_downstream_connections: 1000
+node:
+  id: envoy-node
+  cluster: ingress:public:https
+static_resources:
+  listeners:
+    - name: &8000-listener 8000-listener
+      address:
+        socket_address:
+          address: *address
+          port_value: 8000
+      stat_prefix: *8000-listener
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: *8000-listener
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains: [ "*" ]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          direct_response:
+                            status: 200
+                            body:
+                              inline_string: "Hello World!"
+                http_filters:
+                  - *router
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              common_tls_context:
+                tls_certificate_sds_secret_configs: *tls_certificate_sds_secret_configs
+

@@ -1,0 +1,27 @@
+services:
+  server:
+    image: envoyproxy/envoy:v1.33.0
+    volumes:
+      - ./config:/var/run/config
+      - ./certs:/var/run/certs
+    ports:
+      - 8000:8000
+    command:
+      - --log-level
+      - info
+      - -c
+      - /var/run/config/server.yaml
+  client:
+    image: envoyproxy/envoy:v1.33.0
+    volumes:
+      - ./config:/var/run/config
+      - ./certs:/var/run/certs
+      - ./ca:/var/run/ca
+      - ./logs:/var/run/logs
+    ports:
+      - 8001:8001
+    command:
+      - --log-level
+      - trace
+      - -c
+      - /var/run/config/client.yaml
