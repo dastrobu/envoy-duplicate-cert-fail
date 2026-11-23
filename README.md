@@ -10,6 +10,31 @@ There are multiple scenarios, which demonstrates the issue:
 * [Trust Expired Cert Only](#trust-expired-cert-only) Fails as expected.
 * [Trust Valid Cert Only](#trust-valid-cert-only) Works as expected.
 
+## Envoy v1.40.2 Results
+
+This branch runs the reproducer against `envoyproxy/envoy:v1.40.2`, which includes
+[envoyproxy/envoy#47511](https://github.com/envoyproxy/envoy/pull/47511) ("tls: always treat trusted_ca as a set of certs").
+The original results below were recorded with `v1.33.0`.
+
+| Scenario              | v1.33.0 `/certs` | v1.33.0 health      | v1.40.2 `/certs` | v1.40.2 health      |
+|-----------------------|------------------|---------------------|------------------|---------------------|
+| Expired cert **last** | valid only       | `/failed_active_hc` | both             | `healthy`           |
+| Expired cert **first**| expired only     | `healthy`           | both             | `/failed_active_hc` |
+| Valid cert only       | valid            | `healthy`           | valid            | `healthy`           |
+| Expired cert only     | expired          | `/failed_active_hc` | expired          | `/failed_active_hc` |
+
+Observations for v1.40.2:
+
+* `/certs` now lists all certificates of the trust bundle (in file order). **Fixed.**
+* Validation is still order dependent, but the failing order flipped: now the expired cert **first** fails with
+  `verify cert failed: X509_verify_cert: certificate verification error at depth 1: certificate has expired`.
+* No warning is logged when loading a trust bundle with two CA certs sharing subject and public key.
+* `ssl.certificate.validation_context_sds.expiration_unix_time_seconds` reports the earliest expiration in the bundle
+  (`1664582400`, i.e. the expired cert) in both orders, so it does not indicate which order actually fails.
+
+Note: curl 8.18 / OpenSSL 3.5 rejects the intermediates with `invalid CA certificate (79)` since they lack
+`basicConstraints=CA:TRUE`, so the curl comparisons below no longer reproduce with recent curl versions.
+
 ## Setup
 
 Start two containers with docker compose:

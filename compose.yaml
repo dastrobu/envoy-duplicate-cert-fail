@@ -1,6 +1,6 @@
 services:
   server:
-    image: envoyproxy/envoy:v1.33.0
+    image: envoyproxy/envoy:v1.40.2
     volumes:
       - ./config:/var/run/config
       - ./certs:/var/run/certs
@@ -12,7 +12,7 @@ services:
       - -c
       - /var/run/config/server.yaml
   client:
-    image: envoyproxy/envoy:v1.33.0
+    image: envoyproxy/envoy:v1.40.2
     volumes:
       - ./config:/var/run/config
       - ./certs:/var/run/certs
